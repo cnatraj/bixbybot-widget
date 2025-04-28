@@ -61,7 +61,7 @@ class BixbyWidget {
       const response = await fetch(
         `${
           this.supabaseUrl
-        }/functions/v1/get-client-config?botId=${encodeURIComponent(
+        }/functions/v1/get-widget-config?botId=${encodeURIComponent(
           this.botId
         )}`,
         {
