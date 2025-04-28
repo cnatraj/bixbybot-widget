@@ -160,7 +160,7 @@ class BixbyWidget {
         border: 1px solid ${theme.input?.borderColor || "#ddd"};
         border-radius: 4px;
         margin-right: 8px;
-        font-size: 12px;
+        font-size: 16px;
       }
       .bixby-chat-input button {
         padding: 8px 16px;
