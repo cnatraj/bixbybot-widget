@@ -5,6 +5,6 @@
 [[headers]]
   for = "/*"
   [headers.values]
-    Access-Control-Allow-Origin = "*, http://localhost:5174"
+    Access-Control-Allow-Origin = "*"
     Access-Control-Allow-Methods = "GET, OPTIONS"
     Access-Control-Allow-Headers = "Content-Type"
