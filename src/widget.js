@@ -48,12 +48,59 @@ class BixbyWidget {
       this.createWidget();
       this.initializeEventListeners();
       await this.loadChatHistory();
+      this.setupMobileHandling();
     } catch (error) {
       console.error("BixbyWidget: Initialization failed", error);
       this.showError(
         "Failed to initialize chat widget. Please check console for details."
       );
     }
+  }
+
+  setupMobileHandling() {
+    if (!this.elements?.chatWindow) return;
+
+    // Handle viewport changes on mobile
+    const visualViewport = window.visualViewport;
+    if (visualViewport) {
+      visualViewport.addEventListener("resize", () => {
+        if (this.elements.chatWindow.style.display !== "flex") return;
+
+        const isMobile = window.innerWidth <= 768;
+        if (!isMobile) return;
+
+        // Adjust chat window size and position when keyboard appears
+        const keyboardHeight = window.innerHeight - visualViewport.height;
+        const chatHeight = visualViewport.height - 20;
+
+        this.elements.chatWindow.style.height = `${chatHeight}px`;
+        this.elements.chatWindow.style.bottom = "10px";
+        this.elements.messages.style.height = `${chatHeight - 120}px`; // Account for header and input
+      });
+    }
+
+    // Prevent scrolling of the parent page when interacting with the chat
+    this.elements.chatWindow.addEventListener(
+      "touchmove",
+      (e) => {
+        const target = e.target;
+        const messagesContainer = this.elements.messages;
+
+        if (
+          target === messagesContainer ||
+          messagesContainer.contains(target)
+        ) {
+          if (messagesContainer.scrollHeight > messagesContainer.clientHeight) {
+            e.stopPropagation();
+          } else {
+            e.preventDefault();
+          }
+        } else {
+          e.preventDefault();
+        }
+      },
+      { passive: false }
+    );
   }
 
   async loadClientConfig() {
@@ -127,32 +174,54 @@ class BixbyWidget {
       }
       .bixby-chat-window {
         position: fixed;
-        bottom: 100px;
-        right: 20px;
-        width: ${theme.window?.width || "350px"};
-        height: ${theme.window?.height || "500px"};
+        width: calc(100% - 20px);
+        height: calc(100% - 20px);
+        max-width: ${theme.window?.width || "350px"};
+        max-height: ${theme.window?.height || "500px"};
         background: ${theme.window?.backgroundColor || "white"};
         border-radius: ${theme.window?.borderRadius || "12px"};
         box-shadow: 0 4px 24px rgba(0, 0, 0, 0.1);
         display: none;
         flex-direction: column;
         overflow: hidden;
+        bottom: 10px;
+        right: 10px;
+        transition: all 0.1s ease;
       }
       .bixby-chat-header {
         padding: 16px;
         background: ${theme.header?.backgroundColor || "#1867C0"};
         color: ${theme.header?.textColor || "white"};
         font-weight: 500;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-shrink: 0;
+      }
+      .bixby-close-button {
+        cursor: pointer;
+        padding: 4px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: background-color 0.2s;
+      }
+      .bixby-close-button:hover {
+        background-color: rgba(255, 255, 255, 0.1);
       }
       .bixby-chat-messages {
         flex: 1;
         padding: 16px;
         overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
       }
       .bixby-chat-input {
         padding: 16px;
         border-top: 1px solid ${theme.input?.borderColor || "#eee"};
         display: flex;
+        flex-shrink: 0;
+        background: ${theme.window?.backgroundColor || "white"};
       }
       .bixby-chat-input input {
         flex: 1;
@@ -161,6 +230,8 @@ class BixbyWidget {
         border-radius: 4px;
         margin-right: 8px;
         font-size: 16px;
+        -webkit-appearance: none;
+        appearance: none;
       }
       .bixby-chat-input button {
         padding: 8px 16px;
@@ -169,7 +240,9 @@ class BixbyWidget {
         border: none;
         border-radius: 4px;
         cursor: pointer;
-        font-size: 12px;
+        font-size: 14px;
+        -webkit-appearance: none;
+        appearance: none;
       }
       .bixby-chat-input button:hover {
         background: ${theme.button?.hoverColor || "#1557A0"};
@@ -196,6 +269,21 @@ class BixbyWidget {
         margin: 8px 0;
         font-size: 12px;
       }
+      @media (max-width: 768px) {
+        .bixby-widget-button {
+          width: 50px;
+          height: 50px;
+          bottom: 20px;
+          right: 20px;
+        }
+        .bixby-chat-window {
+          max-width: 100%;
+          max-height: 100%;
+        }
+        .bixby-chat-input {
+          padding: 12px;
+        }
+      }
     `;
 
     const styleSheet = document.createElement("style");
@@ -218,9 +306,15 @@ class BixbyWidget {
     const chatWindow = document.createElement("div");
     chatWindow.className = "bixby-chat-window";
     chatWindow.innerHTML = `
-      <div class="bixby-chat-header">Chat with ${
-        this.config?.client?.name || "Bixby"
-      }</div>
+      <div class="bixby-chat-header">
+        <span>Chat with ${this.config?.bot?.name || "Bixby"}</span>
+        <div class="bixby-close-button">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </div>
+      </div>
       <div class="bixby-chat-messages"></div>
       <div class="bixby-typing-indicator">Assistant is typing...</div>
       <div class="bixby-error-message"></div>
@@ -248,6 +342,7 @@ class BixbyWidget {
       sendButton: chatWindow.querySelector("button"),
       typingIndicator: chatWindow.querySelector(".bixby-typing-indicator"),
       errorMessage: chatWindow.querySelector(".bixby-error-message"),
+      closeButton: chatWindow.querySelector(".bixby-close-button"),
     };
   }
 
@@ -262,8 +357,14 @@ class BixbyWidget {
 
   initializeEventListeners() {
     this.elements.button.addEventListener("click", () => {
-      const isVisible = this.elements.chatWindow.style.display === "flex";
-      this.elements.chatWindow.style.display = isVisible ? "none" : "flex";
+      this.elements.chatWindow.style.display = "flex";
+      this.elements.button.style.display = "none";
+      this.elements.input.focus();
+    });
+
+    this.elements.closeButton.addEventListener("click", () => {
+      this.elements.chatWindow.style.display = "none";
+      this.elements.button.style.display = "flex";
     });
 
     this.elements.sendButton.addEventListener("click", () =>
@@ -271,6 +372,14 @@ class BixbyWidget {
     );
     this.elements.input.addEventListener("keypress", (e) => {
       if (e.key === "Enter") this.handleMessage();
+    });
+
+    // Prevent zoom on input focus for iOS
+    this.elements.input.addEventListener("focus", () => {
+      // Add a slight delay to ensure the viewport is stable
+      setTimeout(() => {
+        this.elements.input.style.fontSize = "16px";
+      }, 100);
     });
   }
 
@@ -322,7 +431,7 @@ class BixbyWidget {
       const { error } = await this.supabase
         .from("widget_conversations")
         .insert({
-          client_id: this.botId,
+          bot_id: this.botId,
           thread_id: this.threadId,
           sender,
           message,
@@ -336,14 +445,10 @@ class BixbyWidget {
   }
 
   clearChat() {
-    // Clear UI
     this.elements.messages.innerHTML = "";
-
-    // Clear thread ID from local storage and memory
     localStorage.removeItem(`bixby_thread_${this.botId}`);
     this.threadId = null;
 
-    // Add system message
     const systemMessage = document.createElement("div");
     systemMessage.className = "bixby-system-message";
     systemMessage.textContent =
@@ -355,14 +460,12 @@ class BixbyWidget {
     const message = this.elements.input.value.trim();
     if (!message) return;
 
-    // Check for clear command
     if (message.toLowerCase() === "clr") {
       this.clearChat();
       this.elements.input.value = "";
       return;
     }
 
-    // Regular message handling
     this.addMessage("user", message);
     await this.saveMessage("user", message);
 
@@ -382,6 +485,7 @@ class BixbyWidget {
         body: JSON.stringify({
           message,
           threadId: this.threadId,
+          botId: this.botId,
         }),
       });
 
